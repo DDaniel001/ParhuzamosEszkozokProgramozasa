@@ -1,6 +1,7 @@
+#define CL_TARGET_OPENCL_VERSION 220
 #include "vector_ops.h"
 #include "kernel_loader.h"
-#define CL_TARGET_OPENCL_VERSION 220
+#include "error_handler.h"
 #include <CL/cl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,10 +16,16 @@ void parallel_vector_add(const float* a, const float* b, float* result, int n) {
     cl_device_id device_id;
     clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, NULL);
 
-    // Create Context and Command Queue
+    /// Create Context
     cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, NULL);
-    // Note: clCreateCommandQueue is deprecated but used for compatibility with older examples
-    cl_command_queue queue = clCreateCommandQueue(context, device_id, 0, NULL);
+    
+    // Create Command Queue with error checking
+    cl_command_queue queue = clCreateCommandQueue(context, device_id, 0, &err);
+
+    if (err != CL_SUCCESS) {
+        printf("Failed to create command queue: %s\n", get_error_string(err));
+        return; // Do not proceed if there is an error
+    }
 
     // Load kernel source using the provided loader
     char* source = load_kernel_source("kernels/vector_add.cl", &error_code);

@@ -53,3 +53,15 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# --- Project Specific Patterns ---
+
+# Output images (Mandelbrot PPM files)
+*.ppm
+
+# Performance measurement results (CSV files)
+results/
+
+# Editor specific (VS Code / JetBrains)
+.vscode/
+.idea/

@@ -6,59 +6,67 @@
 #include "mandelbrot_ops.h"
 
 #define MAX_ITER 1000
+#define RUNS 5 
 
 int main(int argc, char *argv[]) {
-    // Default image dimensions
     int width = 1024;
     int height = 1024;
 
-    // Parse command line arguments if provided
     if (argc >= 3) {
         width = atoi(argv[1]);
         height = atoi(argv[2]);
     }
 
-    // Allocate host memory for the image
     int *image = malloc(width * height * sizeof(int));
     if (image == NULL) {
         fprintf(stderr, "Failed to allocate host memory!\n");
         return 1;
     }
 
-    // Start execution timer
-    double start_time = omp_get_wtime();
+    printf("Starting %d runs for averaging (OpenCL)...\n", RUNS);
+    double total_time_ms = 0;
 
-    // Call OpenCL wrapper function
-    calculate_mandelbrot_opencl(image, width, height, MAX_ITER);
-
-    // Calculate elapsed time
-    double end_time = omp_get_wtime();
-    double elapsed_ms = (end_time - start_time) * 1000.0;
-
-    printf("Execution time: %.2f ms using OpenCL (%dx%d)\n", elapsed_ms, width, height);
-
-    // Save the result as a PPM image file
-    FILE *fp = fopen("mandelbrot_ocl.ppm", "w");
-    fprintf(fp, "P3\n%d %d\n255\n", width, height);
-    for (int i = 0; i < width * height; i++) {
-        int color = image[i] % 256;
-        fprintf(fp, "%d %d %d ", color, color, color);
+    for (int i = 0; i < RUNS; i++) {
+        double start_time = omp_get_wtime();
+        calculate_mandelbrot_opencl(image, width, height, MAX_ITER);
+        double end_time = omp_get_wtime();
+        
+        double current_run_ms = (end_time - start_time) * 1000.0;
+        total_time_ms += current_run_ms;
+        printf("  Run %d: %.2f ms\n", i + 1, current_run_ms);
     }
-    fclose(fp);
 
-    // Create results directory and log performance data to CSV
+    double average_ms = total_time_ms / RUNS;
+    // The number of threads in OpenCL context is the total number of pixels
+    long total_threads = (long)width * height;
+
+    printf("Average execution time: %.2f ms using OpenCL with %ld threads (%dx%d)\n", 
+           average_ms, total_threads, width, height);
+
+    // Save PPM file
+    FILE *fp = fopen("mandelbrot_ocl.ppm", "w");
+    if (fp) {
+        fprintf(fp, "P3\n%d %d\n255\n", width, height);
+        for (int i = 0; i < width * height; i++) {
+            int color = image[i] % 256;
+            fprintf(fp, "%d %d %d ", color, color, color);
+        }
+        fclose(fp);
+    }
+
     _mkdir("results");
     FILE *fp_csv = fopen("results/mandelbrot_ocl_results.csv", "a");
     if (fp_csv != NULL) {
         fseek(fp_csv, 0, SEEK_END);
+        // If file is empty, write header
         if (ftell(fp_csv) == 0) {
-            fprintf(fp_csv, "Width,Height,Platform,Time(ms)\n");
+            fprintf(fp_csv, "Width,Height,Threads,Time(ms)\n");
         }
-        fprintf(fp_csv, "%d,%d,OpenCL,%.2f\n", width, height, elapsed_ms);
+        // Log the average time and the total work items (threads)
+        fprintf(fp_csv, "%d,%d,%ld,%.2f\n", width, height, total_threads, average_ms);
         fclose(fp_csv);
     }
 
-    // Clean up host memory
     free(image);
     return 0;
 }

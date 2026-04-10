@@ -7,6 +7,7 @@
 #include <direct.h>
 
 #define MAX_ITER 1000
+#define RUNS 5 // Number of measurements for averaging
 
 // Mathematic formula: z = z² + c, analyse that |z| <= 2, if not, it exits.
 // If the iter reaches the Max_ITER it is part of the Mandelbrot set.
@@ -47,50 +48,52 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    double start_time = omp_get_wtime();
+    printf("Starting %d runs for averaging (OpenMP with %d threads)...\n", RUNS, num_threads);
+    double total_time_ms = 0;
 
-    #pragma omp parallel for schedule(dynamic)
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            double real = (x - width / 2.0) * 4.0 / width;
-            double imag = (y - height / 2.0) * 4.0 / height;
-            image[y * width + x] = mandelbrot(real, imag);
+    for (int r = 0; r < RUNS; r++) {
+        double start_time = omp_get_wtime();
+
+        #pragma omp parallel for schedule(dynamic)
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                double real = (x - width / 2.0) * 4.0 / width;
+                double imag = (y - height / 2.0) * 4.0 / height;
+                image[y * width + x] = mandelbrot(real, imag);
+            }
         }
+
+        double end_time = omp_get_wtime();
+        double current_run_ms = (end_time - start_time) * 1000.0;
+        total_time_ms += current_run_ms;
+        printf("  Run %d: %.2f ms\n", r + 1, current_run_ms);
     }
 
-    double end_time = omp_get_wtime();
-    double elapsed_ms = (end_time - start_time) * 1000.0;
+    double average_ms = total_time_ms / RUNS;
+    printf("Average execution time: %.2f ms with %d threads (%dx%d)\n",
+           average_ms, num_threads, width, height);
 
-    // Print in ms
-    printf("Execution time: %.2f ms with %d threads and image size %dx%d\n",
-           elapsed_ms, num_threads, width, height);
-
-    // Save PPM file
+    // Save PPM file (only once)
     FILE *fp = fopen("mandelbrot.ppm", "w");
-    fprintf(fp, "P3\n%d %d\n255\n", width, height);
-    for (int i = 0; i < width * height; i++) {
-        int color = image[i] % 256;
-        fprintf(fp, "%d %d %d ", color, color, color);
+    if (fp) {
+        fprintf(fp, "P3\n%d %d\n255\n", width, height);
+        for (int i = 0; i < width * height; i++) {
+            int color = image[i] % 256;
+            fprintf(fp, "%d %d %d ", color, color, color);
+        }
+        fclose(fp);
     }
-    fclose(fp);
 
-    mkdir("results");
-
+    _mkdir("results");
     FILE *fp_csv = fopen("results/mandelbrot_results.csv", "a");
-    if (fp_csv == NULL) {
-        fprintf(stderr, "Could not open results file for writing.\n");
-        free(image);
-        return 1;
+    if (fp_csv != NULL) {
+        fseek(fp_csv, 0, SEEK_END);
+        if (ftell(fp_csv) == 0) {
+            fprintf(fp_csv, "Width,Height,Threads,Time(ms),Runs\n");
+        }
+        fprintf(fp_csv, "%d,%d,%d,%.2f\n", width, height, num_threads, average_ms);
+        fclose(fp_csv);
     }
-
-    // Writing header, when the file is empty
-    fseek(fp_csv, 0, SEEK_END);
-    if (ftell(fp_csv) == 0) {
-        fprintf(fp_csv, "Width,Height,Threads,Time(ms)\n");
-    }
-
-    fprintf(fp_csv, "%d,%d,%d,%.2f\n", width, height, num_threads, elapsed_ms);
-    fclose(fp_csv);
 
     free(image);
     return 0;

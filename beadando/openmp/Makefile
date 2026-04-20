@@ -1,2 +1,2 @@
 all:
-	gcc -fopenmp mandelbrot.c -o mandelbrot.exe
+	gcc -fopenmp mandelbrot.c -o mandelbrot.exe -lm

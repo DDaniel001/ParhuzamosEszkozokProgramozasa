@@ -5,6 +5,7 @@
 #include <omp.h>
 #include <string.h>
 #include <direct.h>
+#include <math.h>
 
 #define MAX_ITER 1000
 #define RUNS 5 // Number of measurements for averaging
@@ -49,6 +50,11 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Starting %d runs for averaging (OpenMP with %d threads)...\n", RUNS, num_threads);
+    
+    // Zoom/Cropping coordinates
+    double re_min = -1.6, re_max = 0.6;
+    double im_min = -1.1, im_max = 1.1;
+
     double total_time_ms = 0;
 
     for (int r = 0; r < RUNS; r++) {
@@ -57,8 +63,8 @@ int main(int argc, char *argv[]) {
         #pragma omp parallel for schedule(dynamic)
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                double real = (x - width / 2.0) * 4.0 / width;
-                double imag = (y - height / 2.0) * 4.0 / height;
+                double real = re_min + x * (re_max - re_min) / width;
+                double imag = im_min + y * (im_max - im_min) / height;
                 image[y * width + x] = mandelbrot(real, imag);
             }
         }
@@ -73,15 +79,25 @@ int main(int argc, char *argv[]) {
     printf("Average execution time: %.2f ms with %d threads (%dx%d)\n",
            average_ms, num_threads, width, height);
 
-    // Save PPM file (only once)
-    FILE *fp = fopen("mandelbrot.ppm", "w");
+    // Save Color PPM file (P3 format)
+    FILE *fp = fopen("mandelbrot_openmp.ppm", "w");
     if (fp) {
         fprintf(fp, "P3\n%d %d\n255\n", width, height);
         for (int i = 0; i < width * height; i++) {
-            int color = image[i] % 256;
-            fprintf(fp, "%d %d %d ", color, color, color);
+            int iter = image[i];
+            int red, green, blue;
+
+            if (iter == MAX_ITER) {
+                red = green = blue = 0;
+            } else {
+                red = (int)(128 + 127 * sin(0.3 * iter + 0));
+                green = (int)(128 + 127 * sin(0.3 * iter + 2));
+                blue = (int)(128 + 127 * sin(0.3 * iter + 4));
+            }
+            fprintf(fp, "%d %d %d ", red % 256, green % 256, blue % 256);
         }
         fclose(fp);
+        printf("Image saved to mandelbrot_openmp.ppm\n");
     }
 
     _mkdir("results");
@@ -89,9 +105,9 @@ int main(int argc, char *argv[]) {
     if (fp_csv != NULL) {
         fseek(fp_csv, 0, SEEK_END);
         if (ftell(fp_csv) == 0) {
-            fprintf(fp_csv, "Width,Height,Threads,Time(ms),Runs\n");
+            fprintf(fp_csv, "Width,Height,Threads,Time(ms),Label\n");
         }
-        fprintf(fp_csv, "%d,%d,%d,%.2f\n", width, height, num_threads, average_ms);
+        fprintf(fp_csv, "%d,%d,%d,%.2f,OpenMP\n", width, height, num_threads, average_ms);
         fclose(fp_csv);
     }
 

@@ -9,7 +9,7 @@ A programok kimenetként legenerálják a Mandelbrot halmaz képét (`.ppm` form
 
 * `openmp/`: A CPU-s párhuzamosítás forráskódjai és fordító szkriptje.
 * `opencl/`: A GPU-s párhuzamosítás (OpenCL kernel és C wrapper) forráskódjai.
-* `docs/`: Ide kerülnek az összesített mérések (Excel) és a beadandó hivatalos dokumentációja.
+* `docs/`: Ide kerülnek az összesített mérések és a beadandó hivatalos dokumentációja.
 
 ## Rendszerkövetelmények
 * C fordító (pl. GCC, MinGW).
@@ -48,9 +48,9 @@ make
 ```
 
 **Futtatás:**
-A program 2 opcionális paramétert vár: szélesség és magasság (a szálak számát a GPU hardveresen optimalizálja).
+A program 3 opcionális paramétert vár: szélesség, magasság, számítás fajtája (0: Pontonkénti pixel számítás, 1: 1x4-es vektorokra bontva) (a szálak számát a GPU hardveresen optimalizálja).
 ```bash
-./mandelbrot_ocl.exe 1024 1024
+./mandelbrot_ocl.exe 1024 1024 0
 ```
 
 ## Mérések és Eredmények
